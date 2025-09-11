@@ -10,10 +10,27 @@ website:
   navbar:
     background: primary
     search: false
+    left:
+      - text: Home
+        href: "./home.html"
+      - text: "Mini Projects"
+        menu:
+          - text: "Mini Project 01"
+            href: "./miniproject01.html"
+          - text: "Mini Project 02"
+            href: "./miniproject02.html"
+          - text: "Mini Project 03"
+            href: "./miniproject03.html"
+          - text: "Mini Project 04"
+            href: "./miniproject04.html"
+          - text: "Final Project"
+            href: "./finalproject.html"
+      - text: "About Me!"
+        href: "./aboutme.html"
     
 format:
   html:
-    theme: superhero 
+    theme: materia 
     toc: false
 
 editor:
