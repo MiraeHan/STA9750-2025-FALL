@@ -1,0 +1,8 @@
+penguins |> 
+  group_by(species, sex) |>
+  summarize(body_mass_avg_g = mean(body_mass, na.rm=TRUE)) |>
+  filter(!is.na(sex)) |>
+  summarize(sex_diff_g = max(body_mass_avg_g) - min(body_mass_avg_g)) |>
+  slice_max(sex_diff_g, n=1) |>
+  pull(species)
+
