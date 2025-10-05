@@ -16,4 +16,362 @@ execute:
 csl: apa.csl
 ---
 
-##project 1
+# Data Analyst's Summary
+
+## Key Facts
+
+* 1. Netflix currently operates in **94 different countries** around the world, offering a wide variety of shows and movies tailored to local audiences.
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+#Load Packages
+
+if(!require("tidyverse")) install.packages("tidyverse")
+library(readr)
+library(dplyr)
+library(stringr)
+library(DT)
+
+#Acquire Data
+
+if(!dir.exists(file.path("data", "mp01"))){
+    dir.create(file.path("data", "mp01"), showWarnings=FALSE, recursive=TRUE)
+}
+
+GLOBAL_TOP_10_FILENAME <- file.path("data", "mp01", "global_top10_alltime.csv")
+
+if(!file.exists(GLOBAL_TOP_10_FILENAME)){
+    download.file("https://www.netflix.com/tudum/top10/data/all-weeks-global.tsv", 
+                  destfile=GLOBAL_TOP_10_FILENAME)
+}
+
+COUNTRY_TOP_10_FILENAME <- file.path("data", "mp01", "country_top10_alltime.csv")
+
+if(!file.exists(COUNTRY_TOP_10_FILENAME)){
+    download.file("https://www.netflix.com/tudum/top10/data/all-weeks-countries.tsv", 
+                  destfile=COUNTRY_TOP_10_FILENAME)
+}
+
+#Read files
+
+GLOBAL_TOP_10 <- read_tsv(
+  GLOBAL_TOP_10_FILENAME, na = "N/A", show_col_types = FALSE)
+
+COUNTRY_TOP_10 <- read_tsv(
+  COUNTRY_TOP_10_FILENAME,na = "N/A", show_col_types = FALSE)
+
+
+#Formatted
+
+
+format_titles <- function(df){
+    colnames(df) <- str_replace_all(colnames(df), "_", " ") |> str_to_title()
+    df
+}
+
+#Exploratory Questions
+
+#Q1
+countries_n <- COUNTRY_TOP_10 |>
+  summarize(n_countries = n_distinct(country_name))
+
+
+```
+
+
+* 2. The non-English-language film that has spent the most cumulative weeks in the global Top 10 is Squid Game: Season 1, which remained on the list for **32 weeks** in total.
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+#Load Packages
+
+if(!require("tidyverse")) install.packages("tidyverse")
+library(readr)
+library(dplyr)
+library(stringr)
+library(DT)
+
+#Acquire Data
+
+if(!dir.exists(file.path("data", "mp01"))){
+    dir.create(file.path("data", "mp01"), showWarnings=FALSE, recursive=TRUE)
+}
+
+GLOBAL_TOP_10_FILENAME <- file.path("data", "mp01", "global_top10_alltime.csv")
+
+if(!file.exists(GLOBAL_TOP_10_FILENAME)){
+    download.file("https://www.netflix.com/tudum/top10/data/all-weeks-global.tsv", 
+                  destfile=GLOBAL_TOP_10_FILENAME)
+}
+
+#Read files
+
+GLOBAL_TOP_10 <- read_tsv(
+  GLOBAL_TOP_10_FILENAME, na = "N/A", show_col_types = FALSE)
+
+
+#Formatted
+
+
+format_titles <- function(df){
+    colnames(df) <- str_replace_all(colnames(df), "_", " ") |> str_to_title()
+    df
+}
+
+#Exploratory Questions
+
+#Q2
+
+GLOBAL_TOP_10 |> 
+  filter(str_detect(category, "Non-English")) |>
+  slice_max(cumulative_weeks_in_top_10, n = 1, with_ties = FALSE) |>
+  mutate(`runtime_(minutes)` = round(60 * runtime)) |>
+  select(-season_title, -runtime) |>
+  format_titles() |>
+  datatable(options = list(searching = FALSE, info = FALSE)) |>
+  formatRound(c('Weekly Hours Viewed', 'Weekly Views'))
+
+```
+
+
+* 3. The longest program to have appeared in the Netflix global Top 10 is Until You Burn: Season 1, with an estimated total runtime of approximately 2,855 minutes.
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+#Load Packages
+
+if(!require("tidyverse")) install.packages("tidyverse")
+library(readr)
+library(dplyr)
+library(stringr)
+library(DT)
+
+#Acquire Data
+
+if(!dir.exists(file.path("data", "mp01"))){
+    dir.create(file.path("data", "mp01"), showWarnings=FALSE, recursive=TRUE)
+}
+
+GLOBAL_TOP_10_FILENAME <- file.path("data", "mp01", "global_top10_alltime.csv")
+
+if(!file.exists(GLOBAL_TOP_10_FILENAME)){
+    download.file("https://www.netflix.com/tudum/top10/data/all-weeks-global.tsv", 
+                  destfile=GLOBAL_TOP_10_FILENAME)
+}
+
+#Read files
+
+GLOBAL_TOP_10 <- read_tsv(
+  GLOBAL_TOP_10_FILENAME, na = "N/A", show_col_types = FALSE)
+
+
+#Formatted
+
+
+format_titles <- function(df){
+    colnames(df) <- str_replace_all(colnames(df), "_", " ") |> str_to_title()
+    df
+}
+
+#Exploratory Questions
+
+#Q3
+GLOBAL_TOP_10 |> 
+  slice_max(runtime, n = 1, with_ties = FALSE) |>
+  mutate(`runtime_(minutes)` = round(60 * runtime)) |>
+  select(-season_title, -runtime) |>
+  format_titles() |>
+  datatable(options = list(searching = FALSE, info = FALSE)) |>
+  formatRound(c('Weekly Hours Viewed', 'Weekly Views'))
+
+```
+
+
+* 4. For each of the four categories, the program with the most total hours of global viewership is as follows: 
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+#Load Packages
+
+if(!require("tidyverse")) install.packages("tidyverse")
+library(readr)
+library(dplyr)
+library(stringr)
+library(DT)
+
+#Acquire Data
+
+if(!dir.exists(file.path("data", "mp01"))){
+    dir.create(file.path("data", "mp01"), showWarnings=FALSE, recursive=TRUE)
+}
+
+GLOBAL_TOP_10_FILENAME <- file.path("data", "mp01", "global_top10_alltime.csv")
+
+if(!file.exists(GLOBAL_TOP_10_FILENAME)){
+    download.file("https://www.netflix.com/tudum/top10/data/all-weeks-global.tsv", 
+                  destfile=GLOBAL_TOP_10_FILENAME)
+}
+
+#Read files
+
+GLOBAL_TOP_10 <- read_tsv(
+  GLOBAL_TOP_10_FILENAME, na = "N/A", show_col_types = FALSE)
+
+
+#Formatted
+
+
+format_titles <- function(df){
+    colnames(df) <- str_replace_all(colnames(df), "_", " ") |> str_to_title()
+    df
+}
+
+#Exploratory Questions
+
+#Q4
+top_by_category <- GLOBAL_TOP_10 |>
+  group_by(category, show_title) |>
+  summarize(total_hours = sum(weekly_hours_viewed, na.rm = TRUE), .groups = "drop_last") |>
+  slice_max(total_hours, n = 1, with_ties = FALSE) |>
+  ungroup() |>
+  rename(
+    Category = category,
+    `Show Title` = show_title,
+    `Total Hours` = total_hours
+  )
+
+datatable(
+  top_by_category,
+  options = list(
+    dom = 't',
+    paging = FALSE,
+    ordering = FALSE,
+    info = FALSE
+  ),
+  rownames = FALSE
+) |>
+  formatRound("Total Hours", 0)
+  
+```
+
+
+* 5. **“Money Heist”** had the longest run in a country’s Top 10, spending **127 weeks** in Pakistan’s Top 10 chart. 
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+#Load Packages
+
+if(!require("tidyverse")) install.packages("tidyverse")
+library(readr)
+library(dplyr)
+library(stringr)
+library(DT)
+
+#Acquire Data
+
+if(!dir.exists(file.path("data", "mp01"))){
+    dir.create(file.path("data", "mp01"), showWarnings=FALSE, recursive=TRUE)
+}
+
+COUNTRY_TOP_10_FILENAME <- file.path("data", "mp01", "country_top10_alltime.csv")
+
+if(!file.exists(COUNTRY_TOP_10_FILENAME)){
+    download.file("https://www.netflix.com/tudum/top10/data/all-weeks-countries.tsv", 
+                  destfile=COUNTRY_TOP_10_FILENAME)
+}
+
+#Read files
+
+
+
+COUNTRY_TOP_10 <- read_tsv(
+  COUNTRY_TOP_10_FILENAME,na = "N/A", show_col_types = FALSE)
+
+
+#Formatted
+
+
+format_titles <- function(df){
+    colnames(df) <- str_replace_all(colnames(df), "_", " ") |> str_to_title()
+    df
+}
+
+#Exploratory Questions
+
+#Q5
+top_tv_cum <- COUNTRY_TOP_10 |>
+  filter(str_detect(category, "^TV")) |>           
+  slice_max(cumulative_weeks_in_top_10, n = 1, with_ties = FALSE) |>  
+  select(country_name, show_title, cumulative_weeks_in_top_10) |>     
+  format_titles()                                 
+
+DT::datatable(
+  top_tv_cum,
+  options = list(
+    dom = 't',
+    paging = FALSE,
+    ordering = FALSE,
+    info = FALSE
+  ),
+  rownames = FALSE
+) 
+```
+
+
+* 6.**Russia** had only 35 weeks of Top 10 data, when **reporting ended on February 27, 2022**.
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+
+country_week_counts <- COUNTRY_TOP_10 |>
+  mutate(week = as.Date(week)) |>
+  summarize(
+    weeks_available = dplyr::n_distinct(week),
+    last_week_with_data = max(week, na.rm = TRUE),
+    .by = country_name
+  ) |>
+  slice_min(weeks_available, n = 1, with_ties = FALSE) |>   # 가장 작은 1개만 선택
+  rename(
+    `Country Name` = country_name,
+    `Weeks Available` = weeks_available,
+    `Last Week With Data` = last_week_with_data
+  )
+
+DT::datatable(
+  country_week_counts,
+  options = list(dom = 't', paging = FALSE, ordering = FALSE, info = FALSE),
+  rownames = FALSE
+)
+
+```
+
+* 7.The total global **viewership** of Squid Game across all three seasons is approximately **5.05 billion hours**.
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+
+sg_seasons_core <- GLOBAL_TOP_10 |>
+  filter(str_detect(category, "^TV"),
+         show_title == "Squid Game",
+         !is.na(season_title)) |>
+  group_by(season_title) |>
+  summarize(`Total Hours` = sum(weekly_hours_viewed, na.rm = TRUE), .groups = "drop")
+
+sg_seasons_core <- sg_seasons_core |>
+  mutate(.season_num = suppressWarnings(as.integer(str_extract(season_title, "\\d+")))) |>
+  arrange(.season_num, season_title) |>
+  select(-.season_num)
+
+sg_total_core <- sg_seasons_core |>
+  summarize(season_title = "Grand Total",
+            `Total Hours` = sum(`Total Hours`, na.rm = TRUE))
+
+
+sg_pivot_core <- bind_rows(sg_seasons_core, sg_total_core) |>
+  rename(Seasons = season_title)
+
+DT::datatable(
+  sg_pivot_core,
+  options = list(dom='t', paging=FALSE, ordering=FALSE, info=FALSE),
+  rownames = FALSE
+) |>
+  formatRound("Total Hours", 0)
+```
+
+
+
+
+
