@@ -450,10 +450,6 @@ most_recent <- us_film_risers |>
   slice(1) |>
   select(show_title, first_week_at_1)
 
-cat("Number of films that debuted below #1 but later reached #1:", n_films, "\n")
-cat("Most recent film to do so:\n")
-print(most_recent)
-
 
 us_film_risers |>
   select(-ever_no1) |>
@@ -477,6 +473,7 @@ us_film_risers |>
     ),
     rownames = FALSE
   )
+
 ```
 
 
@@ -485,6 +482,7 @@ us_film_risers |>
 
 * 10. **Emily in Paris: Season 2** reached the Top 10 charts in the most countries during its debut week — appearing in the Top 10 in 94 countries for the week of December 26, 2021.
 ```{r, echo=TRUE, message=FALSE, warning=FALSE}
+  
 tv_debut_countries <- COUNTRY_TOP_10 |>
   filter(str_detect(category, "^TV")) |>
   group_by(show_title, season_title, country_name) |>
