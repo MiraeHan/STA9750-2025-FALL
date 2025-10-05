@@ -2,7 +2,7 @@
 title: "Welcome to STA9750 - Fall 2025"
 ---
 
-## Welcome to the submission page for STA9750 — Spring 2025 Semester!
+### Welcome to the submission page for STA9750 — Spring 2025 Semester!
 
 
 Hi, I’m Mirae 👋  
