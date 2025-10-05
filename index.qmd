@@ -2,7 +2,7 @@
 title: "Welcome to STA9750 - Fall 2025"
 ---
 
-## Hello!!
+## Welcome to the submission page for STA9750 — Spring 2025 Semester!
 
 
 Hi, I’m Mirae 👋  
@@ -24,4 +24,7 @@ On this site, you can learn more about me and my journey.
 1+1
 ```
 --------------
-Last Updated: `r format(Sys.time(), "%A %m %d, %Y at %H:%M%p")`
+Last Updated: `r { 
+  Sys.setlocale("LC_TIME", "C")
+  format(Sys.time(), "%A %b %d, %Y at %I:%M%p")
+}`
