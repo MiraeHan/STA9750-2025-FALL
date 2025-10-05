@@ -1,7 +1,19 @@
 ---
-title: "Mini Project 01"
-format: html
-toc: true
+title: "Exploring the Most Popular Programming on Netflix"
+subtitle: "Exploring Netflix Top-10 Data"
+author: Mirae Han
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+format: 
+  html: 
+    code-tools: true
+    code-fold: true
+    toc: true
+    toc-location: right
+    number-sections: true
+    toc-depth: 3
+execute:
+  eval: true
+csl: apa.csl
 ---
 
 ##project 1
