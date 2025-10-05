@@ -78,6 +78,9 @@ countries_n <- COUNTRY_TOP_10 |>
 ```
 
 
+
+
+
 * 2. The non-English-language film that has spent the most cumulative weeks in the global Top 10 is Squid Game: Season 1, which remained on the list for **32 weeks** in total.
 
 ```{r, echo=TRUE, message=FALSE, warning=FALSE}
@@ -132,6 +135,9 @@ GLOBAL_TOP_10 |>
 ```
 
 
+
+
+
 * 3. The longest program to have appeared in the Netflix global Top 10 is Until You Burn: Season 1, with an estimated total runtime of approximately 2,855 minutes.
 
 ```{r, echo=TRUE, message=FALSE, warning=FALSE}
@@ -182,6 +188,9 @@ GLOBAL_TOP_10 |>
   formatRound(c('Weekly Hours Viewed', 'Weekly Views'))
 
 ```
+
+
+
 
 
 * 4. For each of the four categories, the program with the most total hours of global viewership is as follows: 
@@ -251,6 +260,9 @@ datatable(
 ```
 
 
+
+
+
 * 5. **“Money Heist”** had the longest run in a country’s Top 10, spending **127 weeks** in Pakistan’s Top 10 chart. 
 
 ```{r, echo=TRUE, message=FALSE, warning=FALSE}
@@ -313,6 +325,9 @@ DT::datatable(
 ```
 
 
+
+
+
 * 6.**Russia** had only 35 weeks of Top 10 data, when **reporting ended on February 27, 2022**.
 
 ```{r, echo=TRUE, message=FALSE, warning=FALSE}
@@ -338,6 +353,10 @@ DT::datatable(
 )
 
 ```
+
+
+
+
 
 * 7.The total global **viewership** of Squid Game across all three seasons is approximately **5.05 billion hours**.
 
@@ -372,6 +391,133 @@ DT::datatable(
 ```
 
 
+
+
+
+* 8.In 2021, Red Notice was viewed approximately **201 million times** worldwide, based on its total of 396.7 million viewing hours and a runtime of 1 hour and 58 minutes.
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+
+runtime_hours <- 1 + 58/60
+
+
+red_notice_views_2021 <- GLOBAL_TOP_10 |>
+  filter(show_title == "Red Notice", year(week) == 2021) |>       
+  summarize(
+    `Total Hours Viewed` = sum(weekly_hours_viewed, na.rm = TRUE),
+    `View Estimate` = round(`Total Hours Viewed` / runtime_hours, 0),
+    .groups = "drop"
+  )
+
+
+DT::datatable(
+  red_notice_views_2021,
+  options = list(dom = 't', paging = FALSE, ordering = FALSE, info = FALSE),
+  rownames = FALSE
+) |>
+  DT::formatRound(c("Total Hours Viewed", "View Estimate"), 0)
+
+```
+
+
+
+
+
+* 9.A total of **45 films** in the U.S. Netflix Top 10 did not debut at Number 1 but later rose to the top spot during their chart runs.
+The most recent example is **Unknown Number: The High School Catfish**, which debuted at #4 and reached #1 in the week of September 7, 2025.
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+
+us_film_risers <- COUNTRY_TOP_10 |>
+  filter(country_name == "United States",
+         str_detect(category, "^Film")) |>
+  arrange(show_title, week) |>
+  group_by(show_title) |>
+  summarize(
+    debut_week      = min(week),
+    debut_rank      = weekly_rank[which.min(week)],
+    ever_no1        = any(weekly_rank == 1),
+    first_week_at_1 = if (any(weekly_rank == 1))
+                        min(week[weekly_rank == 1]) else as.Date(NA)
+  ) |>
+  ungroup() |>
+  filter(ever_no1, debut_rank != 1) |>
+  arrange(desc(debut_week))
+
+n_films <- us_film_risers |> nrow()
+
+most_recent <- us_film_risers |>
+  arrange(desc(first_week_at_1)) |>
+  slice(1) |>
+  select(show_title, first_week_at_1)
+
+cat("Number of films that debuted below #1 but later reached #1:", n_films, "\n")
+cat("Most recent film to do so:\n")
+print(most_recent)
+
+
+us_film_risers |>
+  select(-ever_no1) |>
+  rename(
+    "Show Title"       = show_title,
+    "Debut Week"       = debut_week,
+    "Debut Rank"       = debut_rank,
+    "First Week at #1" = first_week_at_1
+  ) |>
+  mutate(Total_Films = n_films) |>
+  DT::datatable(
+    caption = htmltools::tags$caption(
+      style = 'caption-side: top; text-align: left; font-weight: bold;',
+      sprintf("Total films that debuted below #1 but later reached #1: %d films", n_films)
+    ),
+    options = list(
+      dom = 't',
+      paging = FALSE,
+      ordering = TRUE,
+      info = FALSE
+    ),
+    rownames = FALSE
+  )
+```
+
+
+
+
+
+* 10. **Emily in Paris: Season 2** reached the Top 10 charts in the most countries during its debut week — appearing in the Top 10 in 94 countries for the week of December 26, 2021.
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+tv_debut_countries <- COUNTRY_TOP_10 |>
+  filter(str_detect(category, "^TV")) |>
+  group_by(show_title, season_title, country_name) |>
+  summarize(debut_week = min(week), .groups = "drop") |>
+  group_by(show_title, season_title, debut_week) |>
+  summarize(n_countries = n_distinct(country_name), .groups = "drop") |>
+  arrange(desc(n_countries)) |>
+  rename(
+    "Show Title" = show_title,
+    "Season Title" = season_title,
+    "Debut Week" = debut_week,
+    "Number of Countries" = n_countries
+  )
+
+# Top TV show/season
+top_tv_debut <- tv_debut_countries |>
+  slice(1)
+
+top_tv_debut |>
+  DT::datatable(
+    caption = htmltools::tags$caption(
+      style = 'caption-side: top; text-align: left; font-weight: bold;',
+      "TV show/season that charted in the most countries on its debut week"
+    ),
+    options = list(
+      dom = 't',
+      paging = FALSE,
+      ordering = TRUE,
+      info = FALSE
+    ),
+    rownames = FALSE
+  )
+```
 
 
 
