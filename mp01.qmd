@@ -928,9 +928,9 @@ DT::datatable(
   rownames = FALSE
 )
 
-# ================================
+# =================================
 # 4) Key metrics for press release (latest year)
-# ================================
+# =================================
 hindi_yearly_raw <- GLOBAL_TOP_10 |>
   filter(str_detect(s(show_title), "\\(Hindi\\)") | str_detect(s(season_title), "\\(Hindi\\)")) |>
   mutate(year = year(week)) |>
