@@ -5,12 +5,13 @@ format: html
 
 Hi, I’m Mirae Han, a Certified Public Accountant (CPA) and graduate student at Baruch College’s Zicklin School of Business, pursuing my M.S. in Business Analytics.
 
-I’m passionate about combining accounting expertise with data-driven thinking to uncover insights and create meaningful impact.
+With several years of accounting experience, I’ve seen how data-driven decision-making can transform financial operations. That’s why I’m passionate about leveraging analytics to enhance accounting processes — from automating reporting and improving audit accuracy to uncovering insights that drive smarter business strategies.
 
-Outside of work and study, I enjoy yoga, photography, and exploring cafés around New York City.
+By combining my accounting expertise with data analytics skills, I aim to bridge the gap between traditional finance and technology, helping organizations make more efficient, transparent, and insight-driven financial decisions.
 
 - 💼 LinkedIn: [linkedin.com/in/mirae-han](https://www.linkedin.com/in/miraehan/)  
 - ✉️ Email: MIRAE.HAN@BARUCHMAIL.CUNY.EDU  
+
 
 ```{r}
 #| include: false
