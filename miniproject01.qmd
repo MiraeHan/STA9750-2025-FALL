@@ -949,16 +949,16 @@ if(nrow(hindi_yearly_raw) > 0){
   latest_row  <- hindi_yearly_raw |> dplyr::filter(year == latest_year)
   prev_row    <- hindi_yearly_raw |> dplyr::filter(year == latest_year - 1)
 
-  cat("\n---- Numbers for Press Release ----\n")
-  cat("Latest Year:", latest_year, "\n")
-  cat("Total Hindi Views (global, proxy India):", format(latest_row$total_views, big.mark=","), "\n")
-  cat("Total Hindi Hours (global, proxy India):", format(latest_row$total_hours, big.mark=","), "\n")
-  if(nrow(prev_row) == 1){
-    cat("YoY Hours Growth (%):", round(latest_row$yoy_hours_pct, 1), "%\n")
-  } else {
-    cat("YoY not available (no prior year)\n")
-  }
-  cat("-----------------------------------\n\n")
+  #cat("\n---- Numbers for Press Release ----\n")
+  #cat("Latest Year:", latest_year, "\n")
+  #cat("Total Hindi Views (global, proxy India):", format(latest_row$total_views, big.mark=","), "\n")
+  #cat("Total Hindi Hours (global, proxy India):", format(latest_row$total_hours, big.mark=","), "\n")
+  #if(nrow(prev_row) == 1){
+  #  cat("YoY Hours Growth (%):", round(latest_row$yoy_hours_pct, 1), "%\n")
+  #} else {
+  #  cat("YoY not available (no prior year)\n")
+  #}
+  #cat("-----------------------------------\n\n")
 }
 ```
 
