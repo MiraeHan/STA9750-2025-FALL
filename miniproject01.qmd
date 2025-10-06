@@ -517,5 +517,204 @@ top_tv_debut |>
   )
 ```
 
+# Press Release 1: Upcoming Season of Stranger Things
+
+## The Final Countdown: Stranger Things Returns to Conquer the World Once More
+
+With over 290 million viewing hours and a global legacy that outshines every English-language series, Netflix’s Stranger Things prepares for its grand finale.
+
+As Netflix gears up for the release of Stranger Things Season 5 at the end of 2025, the series continues to stand as one of the platform’s most remarkable success stories. Across its first four seasons, Stranger Things amassed an incredible 296.8 million viewing hours, remaining in the Global Top 10 for a combined 50 weeks and captivating audiences in over 90 countries. Each new season expanded its global reach — with Season 4 alone spending 19 weeks in the Top 10 and reaching viewers across 93 nations. Compared with other major English-language hits like Wednesday and Bridgerton, Stranger Things remains Netflix’s #1 most-watched show of all time, proving its unmatched power to unite fans across generations and continents. With anticipation at an all-time high, the final season is expected to shatter streaming records once again and reinforce Netflix’s dominance in global entertainment.
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+
+#Load Packages
+
+if(!require("tidyverse")) install.packages("tidyverse")
+library(readr)
+library(dplyr)
+library(stringr)
+library(DT)
+
+#Acquire Data
+
+if(!dir.exists(file.path("data", "mp01"))){
+    dir.create(file.path("data", "mp01"), showWarnings=FALSE, recursive=TRUE)
+}
+
+GLOBAL_TOP_10_FILENAME <- file.path("data", "mp01", "global_top10_alltime.csv")
+
+if(!file.exists(GLOBAL_TOP_10_FILENAME)){
+    download.file("https://www.netflix.com/tudum/top10/data/all-weeks-global.tsv", 
+                  destfile=GLOBAL_TOP_10_FILENAME)
+}
+
+COUNTRY_TOP_10_FILENAME <- file.path("data", "mp01", "country_top10_alltime.csv")
+
+if(!file.exists(COUNTRY_TOP_10_FILENAME)){
+    download.file("https://www.netflix.com/tudum/top10/data/all-weeks-countries.tsv", 
+                  destfile=COUNTRY_TOP_10_FILENAME)
+}
+
+#Read files
+
+GLOBAL_TOP_10 <- read_tsv(
+  GLOBAL_TOP_10_FILENAME, na = "N/A", show_col_types = FALSE)
+
+COUNTRY_TOP_10 <- read_tsv(
+  COUNTRY_TOP_10_FILENAME,na = "N/A", show_col_types = FALSE)
 
 
+#Formatted
+
+
+format_titles <- function(df){
+    colnames(df) <- str_replace_all(colnames(df), "_", " ") |> str_to_title()
+    df
+}
+
+#Season 1~4
+# ---------- Helper: parse season number (N/A -> Season 1) ----------
+parse_st_season <- function(season_title) {
+  s <- str_extract(season_title %||% "", "\\d+")
+  ifelse(is.na(s) | season_title %in% c("N/A", "NA", ""), 1L, as.integer(s))
+}
+
+# ---------- Filter Stranger Things (TV), build season_no & clean labels ----------
+st_global_raw <- GLOBAL_TOP_10 |>
+  filter(str_detect(category, "^TV"),
+         show_title == "Stranger Things") |>
+  mutate(season_no = parse_st_season(season_title),
+         season_label = paste0("Stranger Things: Season ", season_no)) |>
+  filter(season_no %in% 1:4)
+
+st_country_raw <- COUNTRY_TOP_10 |>
+  filter(str_detect(category, "^TV"),
+         show_title == "Stranger Things") |>
+  mutate(season_no = parse_st_season(season_title),
+         season_label = paste0("Stranger Things: Season ", season_no)) |>
+  filter(season_no %in% 1:4)
+
+# ---------- 1) Total hours & weeks in global Top 10 (by season) ----------
+st_global <- st_global_raw |>
+  group_by(season_no, season_label) |>
+  summarize(
+    total_hours_viewed    = sum(weekly_hours_viewed, na.rm = TRUE),
+    weeks_in_global_top10 = n_distinct(week),
+    .groups = "drop"
+  )
+
+# ---------- 2) Countries where each season charted at least once ----------
+st_countries <- st_country_raw |>
+  group_by(season_no, season_label) |>
+  summarize(
+    countries_ever_charted = n_distinct(country_name),
+    .groups = "drop"
+  )
+
+# ---------- 3) Multinational appeal of *previous* seasons ----------
+#     = number of distinct countries that charted any earlier season
+countries_by_season <- st_country_raw |>
+  distinct(season_no, country_name) |>
+  group_by(season_no) |>
+  summarize(countries = list(unique(country_name)), .groups = "drop")
+
+prior_counts <- tibble(season_no = 1:4) |>
+  mutate(
+    prior_countries = map_int(
+      season_no,
+      ~ {
+        earlier <- countries_by_season |>
+          filter(season_no < .x)
+        length(unique(unlist(earlier$countries)))
+      }
+    )
+  )
+
+# ---------- 4) Combine & present ----------
+st_summary <- st_global |>
+  left_join(st_countries, by = c("season_no", "season_label")) |>
+  left_join(prior_counts,  by = "season_no") |>
+  arrange(season_no) |>
+  rename(
+    `Season No`               = season_no,
+    `Season Title`            = season_label,
+    `Total Hours Viewed`      = total_hours_viewed,
+    `Weeks in Global Top 10`  = weeks_in_global_top10,
+    `Countries Charted`       = countries_ever_charted,
+    `Countries (Prior Seasons)` = prior_countries
+  )
+
+DT::datatable(
+  st_summary |>
+    select(-`Countries (Prior Seasons)`), 
+  caption = htmltools::tags$caption(
+    style = 'caption-side: top; text-align: left; font-weight: bold;',
+    "Stranger Things S1–S4: Global Hours, Longevity, and Multinational Reach"
+  ),
+  options = list(
+    dom = 't',
+    paging = FALSE,
+    ordering = TRUE,
+    info = FALSE
+  ),
+  rownames = FALSE
+)
+
+
+#Comparison with other programs
+
+# 1) English-language TV only (global table)
+tv_en_global <- GLOBAL_TOP_10 |>
+  filter(str_detect(category, "^TV \\(English\\)"))
+
+# 2) Aggregate by show (across all seasons)
+#    - total_hours_viewed: sum of viewing hours
+#    - weeks_in_global_top10: distinct weeks the show (any season) appeared
+tv_en_summary <- tv_en_global |>
+  group_by(show_title) |>
+  summarize(
+    total_hours_viewed = sum(weekly_hours_viewed, na.rm = TRUE),
+    weeks_in_global_top10 = n_distinct(week),
+    .groups = "drop"
+  )
+
+# 3) Pick the comparison set:
+#    - Stranger Things
+#    - Top 3 other English-language TV shows by total_hours_viewed
+st_row <- tv_en_summary |>
+  filter(show_title == "Stranger Things")
+
+top3_others <- tv_en_summary |>
+  filter(show_title != "Stranger Things") |>
+  slice_max(total_hours_viewed, n = 3)
+
+compare_tbl <- bind_rows(st_row, top3_others) |>
+  arrange(desc(total_hours_viewed)) |>
+  mutate(
+    rank_by_hours = row_number(),
+    share_vs_total = total_hours_viewed / sum(total_hours_viewed)
+  )
+
+# 4) Pretty column names + table
+compare_tbl |>
+  rename(
+    `Show Title` = show_title,
+    `Total Hours Viewed` = total_hours_viewed,
+    `Weeks in Global Top 10` = weeks_in_global_top10,
+    `Rank (by Hours)` = rank_by_hours
+  ) |>
+  select(`Show Title`, `Rank (by Hours)`, `Total Hours Viewed`, `Weeks in Global Top 10`) |>  # ✅ 순서 조정 및 Share 열 제거
+  DT::datatable(
+    caption = htmltools::tags$caption(
+      style = 'caption-side: top; text-align: left; font-weight: bold;',
+      "Stranger Things vs. Top English-Language TV Shows (Global)"
+    ),
+    options = list(
+      dom = 't',
+      paging = FALSE,
+      ordering = TRUE,
+      info = FALSE
+    ),
+    rownames = FALSE
+  )
+```
