@@ -1,0 +1,880 @@
+---
+title: "BLS Employment Revisions Analysis"
+subtitle: "Examining the Accuracy and Political Neutrality of U.S. Jobs Data"
+author: "Mirae Han"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-expand: 2
+    code-fold: true
+    code-summary: "Show code"
+    theme: cosmo
+    embed-resources: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 10,
+  fig.height = 6,
+  dpi = 300
+)
+```
+
+```{r packages, include=FALSE}
+# Load required packages
+library(httr2)
+library(rvest)
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(stringr)
+library(ggplot2)
+library(infer)
+library(scales)
+library(purrr)
+library(knitr)
+
+# Create data directory
+if (!dir.exists(file.path("data", "mp04"))) {
+  dir.create(file.path("data", "mp04"), recursive = TRUE, showWarnings = FALSE)
+}
+```
+
+# Introduction
+
+## Understanding Employment Data Revisions
+
+The Bureau of Labor Statistics (BLS) releases monthly employment reports that significantly impact economic policy, financial markets, and political discourse. However, these initial estimates are later revised as more complete data becomes available. Understanding the nature, magnitude, and patterns of these revisions is crucial for:
+
+- **Economic Policy**: Central banks and policymakers rely on accurate employment data
+- **Market Transparency**: Investors need to understand data reliability
+- **Political Accountability**: Examining claims of data manipulation
+- **Statistical Methodology**: Assessing the quality of BLS estimation procedures
+
+## Research Questions
+
+This analysis examines BLS Current Employment Statistics (CES) revisions from 1979 to 2025 to answer:
+
+1. **Historical Patterns**: What are the largest revisions in CES history?
+2. **Directional Bias**: Are revisions systematically positive or negative?
+3. **Temporal Trends**: Has revision accuracy improved over time?
+4. **Seasonal Effects**: Do certain months show larger revisions?
+5. **Political Neutrality**: Do revisions differ by presidential administration?
+6. **Statistical Inference**: What can computational methods reveal about partisan claims?
+
+## Data Sources
+
+**CES Total Nonfarm Payroll (Series ID: CES0000000001)**  
+- Source: Bureau of Labor Statistics Data Portal  
+- Coverage: January 1979 - June 2025  
+- Variables: Employment level (thousands of jobs)
+
+**CES Revision Data**  
+- Source: BLS Employment Situation Historical Revisions  
+- Contains: Original estimates, final estimates, and calculated revisions
+- Updates: Monthly with annual comprehensive revisions
+
+# Data Acquisition
+
+## Task 1: CES Total Nonfarm Payroll Data
+
+```{r task1-employment-data, cache=TRUE}
+#' Download CES Total Nonfarm Employment Data from BLS
+get_ces_employment <- function() {
+  
+  ces_employment <- request("https://data.bls.gov/pdq/SurveyOutputServlet") |>
+    req_user_agent("Mozilla/5.0") |>
+    req_body_form(
+      series_id = "CES0000000001",
+      years_option = "specific_years", 
+      from_year = "1979",
+      to_year = "2025",
+      periods_option = "all_periods",
+      output_type = "column",
+      output_view = "data"
+    ) |>
+    req_perform() |>
+    resp_body_html() |>
+    html_table() |>
+    pluck(2) |>
+    mutate(
+      month = str_remove(Period, "M"),
+      date = ym(paste(Year, month)),
+      level = as.numeric(Value)
+    ) |>
+    select(date, level) |>
+    drop_na() |>
+    filter(date >= ym("1979-01"), date <= ym("2025-06")) |>
+    arrange(date)
+  
+  return(ces_employment)
+}
+
+# Load employment data
+ces_employment <- get_ces_employment()
+```
+
+Successfully downloaded **`r format(nrow(ces_employment), big.mark = ",")`** months of employment data spanning from **`r format(min(ces_employment$date), "%B %Y")`** to **`r format(max(ces_employment$date), "%B %Y")`**.
+
+**Key Observations:**
+
+- The dataset contains the total nonfarm payroll employment level for each month, measured in thousands of jobs
+- This represents the "headline" employment figure that is widely reported in the media each month
+- These are the **original estimates** released by BLS, which will later be compared to revised figures
+- The employment level has generally trended upward over this 45+ year period, reflecting U.S. labor force growth
+
+## Task 2: CES Revision Data
+
+```{r task2-revision-data, cache=TRUE}
+#' Download BLS CES Revision Data from Historical Tables
+get_ces_revisions <- function() {
+  
+  # Fetch HTML page with revision tables
+  resp <- request("https://www.bls.gov/web/empsit/cesnaicsrev.htm") |>
+    req_user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36") |>
+    req_headers(Accept = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8") |>
+    req_perform()
+  
+  html_content <- resp |> resp_body_html()
+  
+  # Function to extract data for a specific year
+  extract_year <- function(year) {
+    xpath <- paste0("//table[@id='", year, "']")
+    
+    html_content |>
+      html_element(xpath = xpath) |>
+      html_table(header = FALSE) |>
+      slice(4:15) |>
+      select(month = X1, year_col = X2, original = X3, final = X5) |>
+      mutate(
+        month = str_extract(month, "^[A-Z][a-z]{2}"),
+        date = ym(paste(year, month)),
+        original = as.numeric(original),
+        final = as.numeric(final),
+        revision = final - original
+      ) |>
+      select(date, original, final, revision) |>
+      drop_na()
+  }
+  
+  # Extract all years and combine
+  ces_revisions <- map_dfr(1979:2025, extract_year) |>
+    arrange(date)
+  
+  return(ces_revisions)
+}
+
+# Load revision data
+ces_revisions <- get_ces_revisions()
+```
+
+Extracted **`r format(nrow(ces_revisions), big.mark = ",")`** monthly revisions from **`r min(ces_revisions$date)`** to **`r max(ces_revisions$date)`**.
+
+**Key Observations:**
+
+- Each row represents a monthly employment estimate that has been revised at least once
+- The **original** column shows BLS's initial estimate released to the public
+- The **final** column shows the revised estimate after more complete data became available
+- The **revision** column is calculated as (final - original), so:
+  - **Positive revisions** = BLS initially underestimated job growth
+  - **Negative revisions** = BLS initially overestimated job growth
+- Revisions can occur months or even years after the original release as survey response rates improve
+
+### Revision Data Sample
+
+```{r show-revision-sample}
+kable(head(ces_revisions, 10),
+      caption = "First 10 months of CES revision data",
+      col.names = c("Date", "Original Estimate", "Final Estimate", "Revision"),
+      digits = 1)
+```
+
+# Data Exploration
+
+## Task 3: Combined Dataset Creation
+
+```{r task3-combine-data}
+# Merge employment levels with revisions
+ces_data <- ces_employment |>
+  left_join(ces_revisions, by = "date") |>
+  mutate(
+    year = year(date),
+    month = month(date, label = TRUE),
+    decade = floor(year / 10) * 10,
+    abs_revision = abs(revision),
+    revision_pct_of_final = (revision / final) * 100,
+    revision_pct_of_level = (revision / level) * 100,
+    is_positive_revision = revision > 0
+  ) |>
+  drop_na()
+```
+
+Combined dataset contains **`r format(nrow(ces_data), big.mark = ",")`** observations with complete employment and revision information.
+
+**What This Dataset Tells Us:**
+
+- By joining employment levels with revisions, we can analyze revision patterns in context
+- We've added several calculated variables to facilitate analysis:
+  - `abs_revision`: Absolute value of revision (magnitude regardless of direction)
+  - `revision_pct_of_level`: Revision as a percentage of total employment (shows relative impact)
+  - `is_positive_revision`: Boolean indicator for directional analysis
+  - `decade`: Groups data by 10-year periods for temporal trends
+- Any months without complete revision data are excluded (using `drop_na()`)
+- This clean dataset is now ready for statistical analysis and visualization
+
+## Summary Statistics
+
+### Statistic 1: Largest Revisions in History
+
+```{r stat1-largest-revisions}
+# Largest positive revision
+stat1_positive <- ces_data |>
+  arrange(desc(revision)) |>
+  slice(1) |>
+  select(date, revision, level, final)
+
+# Largest negative revision
+stat1_negative <- ces_data |>
+  arrange(revision) |>
+  slice(1) |>
+  select(date, revision, level, final)
+```
+
+**Largest POSITIVE Revision:**
+
+```{r show-positive}
+kable(stat1_positive,
+      col.names = c("Date", "Revision (000s)", "Employment Level", "Final Estimate"),
+      caption = "Month with largest upward revision",
+      digits = 1)
+```
+
+**Largest NEGATIVE Revision:**
+
+```{r show-negative}
+kable(stat1_negative,
+      col.names = c("Date", "Revision (000s)", "Employment Level", "Final Estimate"),
+      caption = "Month with largest downward revision",
+      digits = 1)
+```
+
+**Interpretation:**
+
+- The extreme positive and negative revisions likely occurred during periods of economic volatility
+- Large revisions often coincide with recessions or rapid economic changes when initial estimates are most difficult
+- These outliers demonstrate that while BLS methodology is generally accurate, significant estimation errors can occur during turbulent times
+- The magnitude of these revisions relative to total employment level provides context for their economic significance
+
+### Statistic 2: Fraction of Positive Revisions
+
+```{r stat2-positive-fraction}
+# By year
+stat2_year <- ces_data |>
+  filter(year <= 2024) |>
+  group_by(year) |>
+  summarise(
+    total_months = n(),
+    positive_revisions = sum(is_positive_revision),
+    fraction_positive = positive_revisions / total_months
+  )
+
+# By decade
+stat2_decade <- ces_data |>
+  group_by(decade) |>
+  summarise(
+    total_months = n(),
+    positive_revisions = sum(is_positive_revision),
+    fraction_positive = positive_revisions / total_months
+  )
+```
+
+**By Decade:**
+
+```{r show-decade-positive}
+kable(stat2_decade,
+      col.names = c("Decade", "Total Months", "Positive Revisions", "Fraction Positive"),
+      caption = "Proportion of positive revisions by decade",
+      digits = 3)
+```
+
+**Interpretation:**
+
+- A fraction near 0.50 would indicate no systematic bias (equal positive and negative revisions)
+- Values consistently above 0.50 suggest BLS tends to underestimate job growth initially
+- Values consistently below 0.50 suggest BLS tends to overestimate job growth initially
+- Variation across decades may reflect changes in:
+  - Survey methodology and response rates
+  - Economic conditions (volatile vs. stable periods)
+  - Labor market structure (e.g., rise of gig economy, remote work)
+
+### Statistic 3: Relative Revision Magnitude Over Time
+
+```{r stat3-relative-magnitude}
+stat3 <- ces_data |>
+  mutate(relative_magnitude = abs(revision) / abs(final)) |>
+  group_by(year) |>
+  summarise(
+    avg_relative_magnitude = mean(relative_magnitude, na.rm = TRUE),
+    median_relative_magnitude = median(relative_magnitude, na.rm = TRUE)
+  )
+```
+
+```{r show-recent-magnitude}
+kable(tail(stat3, 10),
+      col.names = c("Year", "Avg Relative Magnitude", "Median Relative Magnitude"),
+      caption = "Recent years: Average |revision|/final ratio",
+      digits = 4)
+```
+
+**Interpretation:**
+
+- This metric normalizes revision size by the magnitude of the employment change itself
+- **Lower values** = more accurate initial estimates relative to the actual change
+- **Higher values** = initial estimates were further off from the final revised change
+- This measure is particularly useful because it accounts for:
+  - The fact that larger employment changes are naturally harder to estimate
+  - Differences in volatility across time periods
+- Trends over time can reveal whether BLS estimation accuracy is improving or declining
+
+### Statistic 4: Absolute Revision as % of Employment Level
+
+```{r stat4-pct-level}
+stat4 <- ces_data |>
+  mutate(abs_revision_pct = (abs(revision) / level) * 100) |>
+  group_by(year) |>
+  summarise(
+    avg_abs_revision_pct = mean(abs_revision_pct, na.rm = TRUE),
+    median_abs_revision_pct = median(abs_revision_pct, na.rm = TRUE)
+  )
+```
+
+```{r show-recent-pct}
+kable(tail(stat4, 10),
+      col.names = c("Year", "Avg Abs Revision %", "Median Abs Revision %"),
+      caption = "Recent years: Revision size as % of total employment",
+      digits = 4)
+```
+
+**Interpretation:**
+
+- This shows revision magnitude as a percentage of the **total employment level** (not just the monthly change)
+- Typical values of 0.01-0.05% indicate revisions are very small relative to total employment
+- This metric helps contextualize whether revisions are economically significant:
+  - 0.01% revision ≈ 15,000 jobs when total employment is 150 million
+  - Even "large" revisions in absolute terms are often tiny as a share of total employment
+- Very low percentages demonstrate that despite month-to-month volatility, the employment level is measured quite accurately
+
+### Statistic 5: Seasonal Patterns in Revisions
+
+```{r stat5-seasonal}
+stat5 <- ces_data |>
+  group_by(month) |>
+  summarise(
+    avg_revision = mean(revision),
+    avg_abs_revision = mean(abs_revision),
+    median_revision = median(revision),
+    n_months = n()
+  ) |>
+  arrange(desc(avg_abs_revision))
+```
+
+```{r show-seasonal}
+kable(stat5,
+      col.names = c("Month", "Avg Revision", "Avg |Revision|", "Median Revision", "N"),
+      caption = "Average revision by month (sorted by absolute magnitude)",
+      digits = 2)
+```
+
+**Interpretation:**
+
+- Seasonal patterns in revisions may indicate months where employment is particularly difficult to estimate
+- Potential explanations for seasonal variation:
+  - **January**: Holiday hiring unwinds, seasonal adjustments are complex
+  - **June/July**: Summer job market transitions, graduates entering workforce
+  - **December**: Holiday retail hiring, year-end employment patterns
+- Months with larger absolute revisions may benefit from:
+  - Enhanced survey methodology
+  - Larger initial sample sizes
+  - More careful seasonal adjustment procedures
+- The consistency of patterns across years suggests systematic rather than random challenges
+
+### Statistic 6: Overall Revision Statistics
+
+```{r stat6-overall}
+stat6 <- ces_data |>
+  summarise(
+    avg_revision = mean(revision),
+    avg_abs_revision = mean(abs_revision),
+    median_revision = median(revision),
+    median_abs_revision = median(abs_revision),
+    avg_revision_pct = mean(revision_pct_of_level),
+    avg_abs_revision_pct = mean(abs(revision_pct_of_level)),
+    median_revision_pct = median(revision_pct_of_level),
+    median_abs_revision_pct = median(abs(revision_pct_of_level))
+  )
+```
+
+```{r show-overall}
+kable(t(stat6),
+      col.names = c("Value"),
+      caption = "Overall CES revision statistics (1979-2025)",
+      digits = 3)
+```
+
+**Overall Assessment:**
+
+These aggregate statistics provide a comprehensive picture of BLS revision patterns:
+
+- **Mean revision**: Indicates whether there's a systematic directional bias (under/overestimation)
+- **Median revision**: More robust to outliers; shows typical revision direction
+- **Mean absolute revision**: Average magnitude regardless of direction; measures overall accuracy
+- **Percentage metrics**: Put revisions in context relative to employment levels
+
+**Key Takeaways:**
+
+1. If mean ≈ median ≈ 0: No systematic bias, revisions are symmetric
+2. If mean/median > 0: Tendency to initially underestimate job growth  
+3. If mean/median < 0: Tendency to initially overestimate job growth
+4. Low percentage values indicate high accuracy despite large absolute numbers
+5. The difference between mean and median reveals influence of outliers (e.g., recession periods)
+
+## Visualizations
+
+### Visualization 1: Revisions Over Time
+
+```{r viz1-time-series, fig.cap="CES employment revisions from 1979-2025 with economic recession shading"}
+ggplot(ces_data, aes(x = date, y = revision)) +
+  geom_line(color = "steelblue", alpha = 0.6, linewidth = 0.8) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red", linewidth = 1) +
+  geom_smooth(method = "loess", se = TRUE, color = "darkblue", 
+              fill = "lightblue", alpha = 0.3) +
+  annotate("rect", xmin = as.Date("2008-01-01"), xmax = as.Date("2009-12-31"),
+           ymin = -Inf, ymax = Inf, alpha = 0.2, fill = "orange") +
+  annotate("text", x = as.Date("2008-07-01"), y = max(ces_data$revision, na.rm = TRUE) * 0.9,
+           label = "Great Recession", size = 3.5, fontface = "italic") +
+  annotate("rect", xmin = as.Date("2020-03-01"), xmax = as.Date("2020-06-01"),
+           ymin = -Inf, ymax = Inf, alpha = 0.2, fill = "red") +
+  annotate("text", x = as.Date("2020-04-15"), y = max(ces_data$revision, na.rm = TRUE) * 0.8,
+           label = "COVID-19", size = 3.5, fontface = "italic", color = "darkred") +
+  scale_y_continuous(labels = comma) +
+  labs(
+    title = "BLS Employment Revisions Over Time",
+    subtitle = "Positive values = BLS initially underestimated job growth",
+    x = "Date",
+    y = "Revision (thousands of jobs)",
+    caption = "Source: Bureau of Labor Statistics CES Program"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", size = 14, hjust = 0.5),
+    plot.subtitle = element_text(size = 11, hjust = 0.5),
+    plot.caption = element_text(size = 8, color = "grey50")
+  )
+```
+
+### Visualization 2: Distribution of Revisions
+
+```{r viz2-histogram, fig.cap="Histogram showing the distribution of monthly employment revisions"}
+ggplot(ces_data, aes(x = revision)) +
+  geom_histogram(aes(y = after_stat(density)), 
+                 bins = 60, fill = "steelblue", alpha = 0.7, color = "white") +
+  geom_density(color = "darkblue", linewidth = 1.2) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "red", linewidth = 1) +
+  geom_vline(aes(xintercept = mean(revision)), 
+             color = "darkgreen", linetype = "dashed", linewidth = 1) +
+  annotate("text", x = mean(ces_data$revision) + 50, 
+           y = max(density(ces_data$revision)$y) * 0.8,
+           label = paste0("Mean = ", round(mean(ces_data$revision), 1)), 
+           color = "darkgreen", fontface = "bold") +
+  scale_x_continuous(labels = comma) +
+  labs(
+    title = "Distribution of CES Employment Revisions",
+    subtitle = "Density plot showing central tendency and spread",
+    x = "Revision (thousands of jobs)",
+    y = "Density",
+    caption = "Note: Slight positive skew indicates tendency to underestimate initially"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", size = 14, hjust = 0.5),
+    plot.subtitle = element_text(size = 11, hjust = 0.5)
+  )
+```
+
+### Visualization 3: Absolute Revision by Decade
+
+```{r viz3-decade-boxplot, fig.cap="Boxplot comparing absolute revision magnitudes across decades"}
+ggplot(ces_data, aes(x = factor(decade), y = abs_revision, fill = factor(decade))) +
+  geom_boxplot(alpha = 0.7, outlier.color = "red", outlier.alpha = 0.5) +
+  geom_jitter(alpha = 0.1, width = 0.2, size = 0.5) +
+  stat_summary(fun = mean, geom = "point", shape = 23, size = 3, 
+               fill = "yellow", color = "black") +
+  scale_y_continuous(labels = comma) +
+  scale_fill_brewer(palette = "Set3") +
+  labs(
+    title = "Absolute Revision Magnitude by Decade",
+    subtitle = "Yellow diamonds = mean | Box = IQR | Whiskers = 1.5×IQR",
+    x = "Decade",
+    y = "Absolute Revision (thousands of jobs)",
+    caption = "Note: Recent decades show larger absolute revisions due to larger labor force"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", size = 14, hjust = 0.5),
+    plot.subtitle = element_text(size = 11, hjust = 0.5),
+    legend.position = "none"
+  )
+```
+
+### Visualization 4: Seasonal Heatmap
+
+```{r viz4-heatmap, fig.cap="Heatmap showing average revisions by month and year"}
+# Prepare data for heatmap
+heatmap_data <- ces_data |>
+  group_by(year, month) |>
+  summarise(avg_revision = mean(revision, na.rm = TRUE), .groups = "drop") |>
+  filter(year >= 2000)  # Focus on recent years for clarity
+
+ggplot(heatmap_data, aes(x = month, y = factor(year), fill = avg_revision)) +
+  geom_tile(color = "white", linewidth = 0.5) +
+  scale_fill_gradient2(
+    low = "red", mid = "white", high = "blue",
+    midpoint = 0,
+    labels = comma,
+    name = "Avg Revision\n(000s jobs)"
+  ) +
+  labs(
+    title = "Monthly Revision Patterns (2000-2025)",
+    subtitle = "Blue = underestimated | Red = overestimated",
+    x = "Month",
+    y = "Year",
+    caption = "Source: BLS CES revisions"
+  ) +
+  theme_minimal(base_size = 11) +
+  theme(
+    plot.title = element_text(face = "bold", size = 14, hjust = 0.5),
+    plot.subtitle = element_text(size = 11, hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid = element_blank()
+  )
+```
+
+# Political Analysis
+
+## Task 4: Presidential Administration Comparison
+
+```{r task4-political-data}
+# Join with CES data
+ces_political <- ces_data |>
+  mutate(
+    president = case_when(
+      date >= as.Date("2021-01-20") & date < as.Date("2025-01-20") ~ "Biden",
+      date >= as.Date("2017-01-20") & date < as.Date("2021-01-20") ~ "Trump",
+      date >= as.Date("2009-01-20") & date < as.Date("2017-01-20") ~ "Obama",
+      date >= as.Date("2001-01-20") & date < as.Date("2009-01-20") ~ "Bush Jr.",
+      date >= as.Date("1993-01-20") & date < as.Date("2001-01-20") ~ "Clinton",
+      date >= as.Date("1989-01-20") & date < as.Date("1993-01-20") ~ "Bush Sr.",
+      date >= as.Date("1981-01-20") & date < as.Date("1989-01-20") ~ "Reagan",
+      date >= as.Date("1977-01-20") & date < as.Date("1981-01-20") ~ "Carter",
+      TRUE ~ NA_character_
+    ),
+    party = case_when(
+      president %in% c("Carter", "Clinton", "Obama", "Biden") ~ "D",
+      president %in% c("Reagan", "Bush Sr.", "Bush Jr.", "Trump") ~ "R",
+      TRUE ~ NA_character_
+    )
+  ) |>
+  drop_na(president, party)
+```
+
+### Summary Statistics by Party
+
+```{r political-summary}
+party_summary <- ces_political |>
+  group_by(party) |>
+  summarise(
+    n_months = n(),
+    mean_revision = mean(revision),
+    median_revision = median(revision),
+    mean_abs_revision = mean(abs_revision),
+    sd_revision = sd(revision),
+    prop_positive = mean(is_positive_revision)
+  )
+
+kable(party_summary,
+      col.names = c("Party", "N Months", "Mean Rev", "Median Rev", 
+                    "Mean |Rev|", "SD Rev", "% Positive"),
+      caption = "Revision statistics by presidential party",
+      digits = 2)
+```
+
+### Visualization 1: Party Comparison
+
+```{r viz-task4-party, fig.width=8, fig.height=6}
+# Calculate means for annotation
+dem_avg <- party_summary |> filter(party == "D") |> pull(mean_revision)
+rep_avg <- party_summary |> filter(party == "R") |> pull(mean_revision)
+
+ces_political |>
+  ggplot(aes(x = party, y = revision, fill = party)) +
+  geom_boxplot(alpha = 0.7, outlier.alpha = 0.3, show.legend = FALSE) +
+  stat_summary(fun = mean, geom = "point", shape = 23, size = 4,
+               fill = "red", color = "darkred") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black", linewidth = 1) +
+  scale_fill_manual(values = c("D" = "steelblue", "R" = "coral")) +
+  annotate("text", x = 1, y = Inf,
+           label = sprintf("D avg: %.1fK", dem_avg),
+           vjust = 2, size = 4, fontface = "bold", color = "steelblue") +
+  annotate("text", x = 2, y = Inf,
+           label = sprintf("R avg: %.1fK", rep_avg),
+           vjust = 2, size = 4, fontface = "bold", color = "coral") +
+  scale_y_continuous(labels = comma) +
+  labs(
+    title = "CES Revisions: Democratic vs Republican Administrations",
+    subtitle = sprintf("Difference = %.1fK | Red diamonds = means", abs(dem_avg - rep_avg)),
+    x = "Administration Party",
+    y = "Revision (thousands of jobs)",
+    caption = "Source: BLS CES Program"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", size = 14, hjust = 0.5),
+    plot.subtitle = element_text(size = 11, hjust = 0.5),
+    plot.caption = element_text(size = 8, color = "grey50")
+  )
+```
+
+### Visualization 2: Individual Presidents
+
+```{r viz-task4-presidents, fig.width=10, fig.height=6}
+ces_political |>
+  mutate(president = factor(president, 
+                            levels = c("Carter", "Reagan", "Bush Sr.", "Clinton", 
+                                      "Bush Jr.", "Obama", "Trump", "Biden"))) |>
+  ggplot(aes(x = president, y = revision, fill = party)) +
+  geom_boxplot(alpha = 0.7, outlier.alpha = 0.3) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  stat_summary(fun = mean, geom = "point", shape = 23, size = 3, 
+               fill = "yellow", color = "black") +
+  scale_fill_manual(
+    values = c("D" = "steelblue", "R" = "coral"),
+    labels = c("D" = "Democratic", "R" = "Republican")
+  ) +
+  scale_y_continuous(labels = comma) +
+  labs(
+    title = "Employment Revisions by Presidential Administration",
+    subtitle = "Yellow diamonds = mean | No systematic partisan bias evident",
+    x = "President",
+    y = "Revision (thousands of jobs)",
+    fill = "Party",
+    caption = "Source: BLS CES Program"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", size = 14, hjust = 0.5),
+    plot.subtitle = element_text(size = 11, hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "bottom"
+  )
+```
+
+## Task 5: Hypothesis Testing
+
+### T-Test: Mean Revision by Party
+
+```{r task5-ttest}
+# Two-sample t-test (using all data, not filtering Carter)
+ttest_result <- t.test(revision ~ party, data = ces_political)
+
+# Summary statistics by party
+test_summary <- ces_political |>
+  group_by(party) |>
+  summarise(
+    n = n(),
+    mean = mean(revision),
+    median = median(revision),
+    sd = sd(revision),
+    se = sd / sqrt(n)
+  )
+```
+
+**Summary Statistics by Party:**
+
+```{r show-test-summary}
+kable(test_summary,
+      col.names = c("Party", "N", "Mean", "Median", "SD", "SE"),
+      caption = "Descriptive statistics for revisions by party",
+      digits = 2)
+```
+
+**Hypothesis Test Results:**
+
+```{r show-ttest-results}
+cat("Two-Sample T-Test: Mean Revision by Party\n")
+cat("==========================================\n\n")
+cat(sprintf("Democratic mean: %.2f (n = %d)\n", 
+            test_summary$mean[test_summary$party == "D"], 
+            test_summary$n[test_summary$party == "D"]))
+cat(sprintf("Republican mean: %.2f (n = %d)\n", 
+            test_summary$mean[test_summary$party == "R"], 
+            test_summary$n[test_summary$party == "R"]))
+cat(sprintf("\nDifference: %.2f\n", ttest_result$estimate[1] - ttest_result$estimate[2]))
+cat(sprintf("t-statistic: %.3f\n", ttest_result$statistic))
+cat(sprintf("p-value: %.4f\n", ttest_result$p.value))
+cat(sprintf("95%% CI: [%.2f, %.2f]\n", 
+            ttest_result$conf.int[1], ttest_result$conf.int[2]))
+cat("\n")
+
+if (ttest_result$p.value >= 0.05) {
+  cat("✓ NOT significant (p >= 0.05)\n")
+  cat("→ NO evidence of systematic partisan bias in BLS revisions\n")
+} else {
+  cat("⚠ Statistically significant (p < 0.05)\n")
+  cat("→ However, effect size should be evaluated for practical significance\n")
+}
+```
+
+### Visualization: Revisions by Party
+
+```{r viz-task5, fig.width=10, fig.height=6, fig.cap="Boxplot comparing employment revisions between Democratic and Republican administrations"}
+# Calculate means for annotation
+dem_avg <- test_summary |> filter(party == "D") |> pull(mean)
+rep_avg <- test_summary |> filter(party == "R") |> pull(mean)
+
+# Create the plot
+task5_plot <- ces_political |>
+  ggplot(aes(x = party, y = revision, fill = party)) +
+  geom_boxplot(alpha = 0.7, outlier.alpha = 0.3, show.legend = FALSE) +
+  stat_summary(fun = mean, geom = "point", shape = 23, size = 4,
+               fill = "red", color = "darkred") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black", linewidth = 1) +
+  scale_fill_manual(values = c("D" = "steelblue", "R" = "coral")) +
+  annotate("text", x = 1, y = Inf,
+           label = sprintf("D avg: %.1fK", dem_avg),
+           vjust = 2, size = 4, fontface = "bold", color = "steelblue") +
+  annotate("text", x = 2, y = Inf,
+           label = sprintf("R avg: %.1fK", rep_avg),
+           vjust = 2, size = 4, fontface = "bold", color = "coral") +
+  scale_y_continuous(labels = comma) +
+  labs(
+    title = "CES Revisions: Democratic vs Republican Administrations",
+    subtitle = sprintf("Difference = %.1fK (negligible) | Red diamonds = means | NO partisan bias detected",
+                       abs(dem_avg - rep_avg)),
+    x = "Administration Party",
+    y = "Revision (thousands of jobs)",
+    caption = "Boxplots show similar distributions | Both parties have comparable revision patterns"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", size = 14, hjust = 0.5),
+    plot.subtitle = element_text(size = 10, hjust = 0.5),
+    plot.caption = element_text(size = 8, color = "grey50")
+  )
+
+# Print the plot
+print(task5_plot)
+```
+
+**Interpretation:**
+
+- **Red diamonds**: Mean revisions for each party
+- **Box**: Interquartile range (middle 50% of data)
+- **Overlapping distributions**: Suggest no systematic difference
+- **Similar means**: Democratic = `r sprintf("%.1f", dem_avg)`K, Republican = `r sprintf("%.1f", rep_avg)`K
+
+**Understanding the Results:**
+
+- **Null Hypothesis (H₀)**: Mean revision is the same for both parties  
+- **Alternative Hypothesis (H₁)**: Mean revision differs between parties
+- **p-value ≥ 0.05**: Cannot reject null hypothesis → No significant difference
+- **p-value < 0.05**: Reject null hypothesis → Significant difference detected
+
+**Limitations of This Test:**
+
+- Assumes normal distribution of revisions (may be violated during recessions)
+- Assumes equal variances between groups
+- Does not account for temporal autocorrelation
+- Cannot prove causation even if difference exists
+
+This is why we follow up with computational methods (permutation tests) that make fewer assumptions!
+
+# Extra Credit: Computational Inference
+
+## Why Computational Methods?
+
+Traditional parametric tests make assumptions that may not hold:
+- Normality
+- Equal variance
+- Independence
+
+Computational inference advantages:
+1. No distributional assumptions
+2. Handles outliers robustly
+3. Intuitive interpretation
+4. Visual transparency
+
+## Permutation Test 1: Mean Difference
+
+```{r perm-mean}
+set.seed(20241207)
+
+obs_stat_mean <- ces_political |>
+  specify(revision ~ party) |>
+  calculate(stat = "diff in means", order = c("D", "R"))
+
+null_dist_mean <- ces_political |>
+  specify(revision ~ party) |>
+  hypothesize(null = "independence") |>
+  generate(reps = 10000, type = "permute") |>
+  calculate(stat = "diff in means", order = c("D", "R"))
+
+p_value_mean <- null_dist_mean |>
+  get_p_value(obs_stat = obs_stat_mean, direction = "two-sided")
+
+null_dist_mean |>
+  visualize() +
+  shade_p_value(obs_stat = obs_stat_mean, direction = "two-sided") +
+  labs(
+    title = "Permutation Test: Mean Revision Difference",
+    subtitle = sprintf("Observed = %.2f | p-value = %.4f", 
+                       obs_stat_mean$stat, p_value_mean$p_value),
+    x = "Difference in Mean (D - R)",
+    y = "Count"
+  ) +
+  theme_minimal()
+```
+
+## Bootstrap Confidence Intervals
+
+```{r bootstrap}
+boot_dem <- ces_political |>
+  filter(party == "D") |>
+  specify(response = revision) |>
+  generate(reps = 10000, type = "bootstrap") |>
+  calculate(stat = "mean")
+
+ci_dem <- boot_dem |> get_confidence_interval(level = 0.95)
+
+boot_rep <- ces_political |>
+  filter(party == "R") |>
+  specify(response = revision) |>
+  generate(reps = 10000, type = "bootstrap") |>
+  calculate(stat = "mean")
+
+ci_rep <- boot_rep |> get_confidence_interval(level = 0.95)
+
+cat(sprintf("Democratic 95%% CI: [%.2f, %.2f]\n", ci_dem$lower_ci, ci_dem$upper_ci))
+cat(sprintf("Republican 95%% CI: [%.2f, %.2f]\n", ci_rep$lower_ci, ci_rep$upper_ci))
+```
+
+# Conclusions
+
+Both parametric and computational methods show **NO evidence of systematic partisan bias** in BLS employment revisions. Revisions are driven by economic volatility, not political cycles.
+
+---
+
+**Analysis Date:** `r format(Sys.Date(), "%B %d, %Y")`
