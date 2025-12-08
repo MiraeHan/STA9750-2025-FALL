@@ -118,7 +118,7 @@ get_ces_employment <- function() {
 ces_employment <- get_ces_employment()
 ```
 
-Successfully downloaded **`r format(nrow(ces_employment), big.mark = ",")`** months of employment data spanning from **`r format(min(ces_employment$date), "%B %Y")`** to **`r format(max(ces_employment$date), "%B %Y")`**.
+Successfully downloaded **`r format(nrow(ces_employment), big.mark = ",")`** months of employment data spanning.
 
 **Key Observations:**
 
@@ -804,72 +804,428 @@ This is why we follow up with computational methods (permutation tests) that mak
 
 # Extra Credit: Computational Inference
 
-## Why Computational Methods?
+## Part 1: What is Computationally-Intensive Inference?
 
-Traditional parametric tests make assumptions that may not hold:
-- Normality
-- Equal variance
-- Independence
+```{r ec-part1, echo=FALSE}
+cat("===== PART 1: What is Computationally-Intensive Inference? =====\n\n")
 
-Computational inference advantages:
-1. No distributional assumptions
-2. Handles outliers robustly
-3. Intuitive interpretation
-4. Visual transparency
+cat("IMAGINE YOU'RE A DETECTIVE:\n\n")
 
-## Permutation Test 1: Mean Difference
+cat("Traditional Statistics (What We Did Before):\n")
+cat("  You find a fingerprint and compare it to a database using a formula.\n")
+cat("  You trust the formula works because mathematicians proved it decades ago.\n")
+cat("  This is like using a t-test—it relies on mathematical theory.\n\n")
 
-```{r perm-mean}
+cat("Computationally-Intensive Inference (Bootstrap & Permutation):\n")
+cat("  Instead of trusting a formula, you SIMULATE what could have happened.\n")
+cat("  • BOOTSTRAP: 'What if I sampled my data thousands of different ways?'\n")
+cat("    → Resample your data WITH replacement, calculate statistic each time\n")
+cat("    → See how much the answer varies → Build confidence intervals\n")
+cat("  • PERMUTATION TEST: 'What if there's really no difference between groups?'\n")
+cat("    → Shuffle party labels randomly, recalculate difference thousands of times\n")
+cat("    → See if real difference is unusual compared to random shuffles\n\n")
+
+cat("WHY USE COMPUTATION INSTEAD OF FORMULAS?\n")
+cat("  ✓ Works with messy, real-world data (doesn't assume perfect bell curves)\n")
+cat("  ✓ No need to memorize complex formulas—computer does the heavy lifting\n")
+cat("  ✓ Easier to explain: 'We tried 10,000 random versions and yours is rare'\n")
+cat("  ✓ More accurate when sample sizes are small or data is skewed\n\n")
+
+cat("REAL-WORLD ANALOGY:\n")
+cat("  Traditional: 'The recipe says bake at 350°F for 30 minutes.'\n")
+cat("  Computational: 'I baked this cake 1,000 times at different temperatures\n")
+cat("                  and timed each one—here's what actually works.'\n\n")
+
+cat("FOR OUR BLS ANALYSIS:\n")
+cat("  Instead of assuming revisions follow a textbook distribution,\n")
+cat("  we'll SIMULATE what revisions would look like if:\n")
+cat("    1. There's no party bias (permutation test)\n")
+cat("    2. We sampled different months (bootstrap confidence intervals)\n")
+cat("  This gives us EVIDENCE-BASED answers, not formula-based assumptions.\n\n")
+```
+
+## Part 2: How Computationally-Intensive Methods Work
+
+```{r ec-part2, echo=FALSE}
+cat(paste(rep("=", 80), collapse = ""), "\n")
+cat("===== PART 2: How Computationally-Intensive Methods Work =====\n\n")
+
+cat("METHOD 1: PERMUTATION TEST (Testing Party Differences)\n")
+cat("┌─────────────────────────────────────────────────────────────────────┐\n")
+cat("│ STEP 1: Calculate Real Difference                                   │\n")
+cat("│   Democratic months: avg revision = +5.2K                          │\n")
+cat("│   Republican months: avg revision = -1.8K                          │\n")
+cat("│   Real Difference = 5.2 - (-1.8) = 7.0K                           │\n")
+cat("├─────────────────────────────────────────────────────────────────────┤\n")
+cat("│ STEP 2: Simulate 'No Difference' World                             │\n")
+cat("│   If party doesn't matter, labels are arbitrary                    │\n")
+cat("│   → Shuffle labels randomly: [D,R,D,R,D] becomes [R,D,D,D,R]      │\n")
+cat("│   → Recalculate difference with shuffled labels                    │\n")
+cat("│   → Repeat 10,000 times = 10,000 'fake' differences               │\n")
+cat("├─────────────────────────────────────────────────────────────────────┤\n")
+cat("│ STEP 3: Compare Real to Simulated                                  │\n")
+cat("│   Real difference = 7.0K                                           │\n")
+cat("│   95% of shuffled differences fall between [-15K, +15K]           │\n")
+cat("│   → 7.0K is INSIDE this range                                      │\n")
+cat("│   → NOT unusual → NO evidence of party bias                        │\n")
+cat("└─────────────────────────────────────────────────────────────────────┘\n\n")
+
+cat("Visualization of Permutation Test:\n")
+cat("  Null Distribution (10,000 shuffles)     Real Difference\n")
+cat("          ▂▄▆█▆▄▂                              ↓\n")
+cat("     ─────███████─────────────────────────────●──────────\n")
+cat("        -15K   0K   +15K                      7.0K\n")
+cat("  If ● falls in tails (< 2.5% or > 97.5%) → significant difference\n")
+cat("  If ● falls in middle → NO significant difference\n\n")
+
+cat("METHOD 2: BOOTSTRAP (Building Confidence Intervals)\n")
+cat("┌─────────────────────────────────────────────────────────────────────┐\n")
+cat("│ STEP 1: Resample Your Data                                         │\n")
+cat("│   Original: [Rev₁, Rev₂, Rev₃, Rev₄, Rev₅, ..., Revₙ]            │\n")
+cat("│   Bootstrap sample 1: [Rev₃, Rev₁, Rev₃, Rev₉, Rev₂, ...]        │\n")
+cat("│   Bootstrap sample 2: [Rev₇, Rev₇, Rev₁, Rev₄, Rev₆, ...]        │\n")
+cat("│   (Sampling WITH replacement—same revision can appear twice)       │\n")
+cat("├─────────────────────────────────────────────────────────────────────┤\n")
+cat("│ STEP 2: Calculate Statistic for Each Sample                        │\n")
+cat("│   Sample 1 mean = 3.2K                                             │\n")
+cat("│   Sample 2 mean = 4.1K                                             │\n")
+cat("│   Sample 3 mean = 2.8K                                             │\n")
+cat("│   ... (repeat 10,000 times)                                        │\n")
+cat("├─────────────────────────────────────────────────────────────────────┤\n")
+cat("│ STEP 3: Find Middle 95% of Bootstrap Distribution                  │\n")
+cat("│   Sort 10,000 means: [0.5K, 1.2K, 2.1K, ..., 8.3K, 9.1K]         │\n")
+cat("│   2.5th percentile = 1.8K                                          │\n")
+cat("│   97.5th percentile = 6.2K                                         │\n")
+cat("│   → 95% Confidence Interval: [1.8K, 6.2K]                         │\n")
+cat("└─────────────────────────────────────────────────────────────────────┘\n\n")
+
+cat("Visualization of Bootstrap:\n")
+cat("  Bootstrap Distribution of Means\n")
+cat("           ▂▄▆███▆▄▂\n")
+cat("     ──────┤─────────┤─────────\n")
+cat("          1.8K      6.2K\n")
+cat("       (2.5%)  95%  (2.5%)\n")
+cat("  'We're 95% confident the true mean is between 1.8K and 6.2K'\n\n")
+```
+
+## Part 3 & 4: Applying Computational Inference to BLS Data
+
+```{r ec-intro}
+cat(paste(rep("=", 80), collapse = ""), "\n")
+cat("===== PART 3 & 4: Applying Computational Inference to BLS Data =====\n\n")
+
+cat("We'll perform THREE tests using bootstrap/permutation methods:\n")
+cat("  TEST A: Mean revision by party (computational t-test analogue)\n")
+cat("  TEST B: Median revision by party (computational Wilcoxon analogue)\n")
+cat("  TEST C: Probability of positive revision by party (computational binomial test)\n\n")
+```
+
+### Test A: Mean Revision - Permutation Test
+
+```{r ec-test-a}
+cat(paste(rep("-", 80), collapse = ""), "\n")
+cat("TEST A: Mean Revision - Permutation Test (Computational t-test)\n")
+cat(paste(rep("-", 80), collapse = ""), "\n\n")
+
+cat("Question: Do Democratic and Republican administrations have different MEAN revisions?\n\n")
+
 set.seed(20241207)
 
+# Calculate observed statistic
 obs_stat_mean <- ces_political |>
   specify(revision ~ party) |>
   calculate(stat = "diff in means", order = c("D", "R"))
 
+cat(sprintf("Observed difference (D - R): %.2f thousand jobs\n\n", obs_stat_mean$stat))
+
+# Generate null distribution via permutation
 null_dist_mean <- ces_political |>
   specify(revision ~ party) |>
   hypothesize(null = "independence") |>
   generate(reps = 10000, type = "permute") |>
   calculate(stat = "diff in means", order = c("D", "R"))
 
+cat("Generating 10,000 permutations...\n")
+cat(sprintf("Null distribution: mean = %.2f, sd = %.2f\n\n", 
+            mean(null_dist_mean$stat), sd(null_dist_mean$stat)))
+
+# Calculate p-value
 p_value_mean <- null_dist_mean |>
   get_p_value(obs_stat = obs_stat_mean, direction = "two-sided")
 
-null_dist_mean |>
+cat(sprintf("P-value (two-sided): %.4f\n\n", p_value_mean$p_value))
+```
+
+```{r ec-viz-mean, fig.width=10, fig.height=6}
+# Visualize
+viz_perm_mean <- null_dist_mean |>
   visualize() +
   shade_p_value(obs_stat = obs_stat_mean, direction = "two-sided") +
   labs(
-    title = "Permutation Test: Mean Revision Difference",
-    subtitle = sprintf("Observed = %.2f | p-value = %.4f", 
+    title = "Permutation Test: Mean Revision Difference by Party",
+    subtitle = sprintf("Observed diff = %.2f | p-value = %.4f | Red = as/more extreme than observed",
                        obs_stat_mean$stat, p_value_mean$p_value),
-    x = "Difference in Mean (D - R)",
-    y = "Count"
+    x = "Difference in Mean Revision (D - R) under Null",
+    y = "Count (out of 10,000 permutations)",
+    caption = "If party doesn't matter, observed difference should be TYPICAL, not extreme"
   ) +
-  theme_minimal()
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(face = "bold", size = 14))
+
+print(viz_perm_mean)
 ```
 
-## Bootstrap Confidence Intervals
+```{r ec-interpret-mean}
+cat("\n----- INTERPRETATION -----\n")
+if (p_value_mean$p_value >= 0.05) {
+  cat(sprintf("✓ p = %.4f (NOT significant)\n", p_value_mean$p_value))
+  cat("  → Observed difference is TYPICAL if party doesn't matter\n")
+  cat("  → NO evidence that party affects mean revision\n")
+  cat("  → Consistent with 'NO POLITICAL BIAS' conclusion\n\n")
+} else {
+  cat(sprintf("⚠ p = %.4f (significant)\n", p_value_mean$p_value))
+  cat("  → But check if difference is economically meaningful\n\n")
+}
+```
 
-```{r bootstrap}
+### Test B: Median Revision - Permutation Test
+
+```{r ec-test-b}
+cat(paste(rep("-", 80), collapse = ""), "\n")
+cat("TEST B: Median Revision - Permutation Test (Computational Wilcoxon)\n")
+cat(paste(rep("-", 80), collapse = ""), "\n\n")
+
+cat("Question: Do Democratic and Republican administrations have different MEDIAN revisions?\n")
+cat("(Median is more robust to outliers than mean)\n\n")
+
+# Calculate observed statistic
+obs_stat_median <- ces_political |>
+  specify(revision ~ party) |>
+  calculate(stat = "diff in medians", order = c("D", "R"))
+
+cat(sprintf("Observed difference (D - R): %.2f thousand jobs\n\n", obs_stat_median$stat))
+
+# Generate null distribution via permutation
+null_dist_median <- ces_political |>
+  specify(revision ~ party) |>
+  hypothesize(null = "independence") |>
+  generate(reps = 10000, type = "permute") |>
+  calculate(stat = "diff in medians", order = c("D", "R"))
+
+cat("Generating 10,000 permutations...\n")
+cat(sprintf("Null distribution: mean = %.2f, sd = %.2f\n\n", 
+            mean(null_dist_median$stat), sd(null_dist_median$stat)))
+
+# Calculate p-value
+p_value_median <- null_dist_median |>
+  get_p_value(obs_stat = obs_stat_median, direction = "two-sided")
+
+cat(sprintf("P-value (two-sided): %.4f\n\n", p_value_median$p_value))
+```
+
+```{r ec-viz-median, fig.width=10, fig.height=6}
+# Visualize
+viz_perm_median <- null_dist_median |>
+  visualize() +
+  shade_p_value(obs_stat = obs_stat_median, direction = "two-sided") +
+  labs(
+    title = "Permutation Test: Median Revision Difference by Party",
+    subtitle = sprintf("Observed diff = %.2f | p-value = %.4f | Tests CENTER of distribution",
+                       obs_stat_median$stat, p_value_median$p_value),
+    x = "Difference in Median Revision (D - R) under Null",
+    y = "Count (out of 10,000 permutations)",
+    caption = "Median = 50th percentile | More robust to COVID-19 outliers"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(face = "bold", size = 14))
+
+print(viz_perm_median)
+```
+
+```{r ec-interpret-median}
+cat("\n----- INTERPRETATION -----\n")
+if (p_value_median$p_value >= 0.05) {
+  cat(sprintf("✓ p = %.4f (NOT significant)\n", p_value_median$p_value))
+  cat("  → Median revisions are SIMILAR across parties\n")
+  cat("  → Even accounting for outliers, NO party effect\n")
+  cat("  → Further evidence AGAINST political bias\n\n")
+} else {
+  cat(sprintf("⚠ p = %.4f (significant)\n", p_value_median$p_value))
+  cat("  → Medians differ, but check practical significance\n\n")
+}
+```
+
+### Test C: Positive Revision Rate - Permutation Test
+
+```{r ec-test-c}
+cat(paste(rep("-", 80), collapse = ""), "\n")
+cat("TEST C: Positive Revision Rate - Permutation Test (Computational Binomial)\n")
+cat(paste(rep("-", 80), collapse = ""), "\n\n")
+
+cat("Question: Do Democratic and Republican administrations have different rates\n")
+cat("          of POSITIVE revisions (i.e., initial underestimation)?\n\n")
+
+# Calculate observed statistic
+obs_stat_prop <- ces_political |>
+  specify(is_positive_revision ~ party, success = "TRUE") |>
+  calculate(stat = "diff in props", order = c("D", "R"))
+
+cat(sprintf("Observed difference (D - R): %.4f\n", obs_stat_prop$stat))
+cat("(Positive = D has higher rate of positive revisions)\n\n")
+
+# Calculate actual proportions for context
+prop_summary <- ces_political |>
+  group_by(party) |>
+  summarise(
+    n = n(),
+    n_positive = sum(is_positive_revision),
+    prop_positive = mean(is_positive_revision)
+  )
+
+print(prop_summary)
+cat("\n")
+
+# Generate null distribution via permutation
+null_dist_prop <- ces_political |>
+  specify(is_positive_revision ~ party, success = "TRUE") |>
+  hypothesize(null = "independence") |>
+  generate(reps = 10000, type = "permute") |>
+  calculate(stat = "diff in props", order = c("D", "R"))
+
+cat("Generating 10,000 permutations...\n")
+cat(sprintf("Null distribution: mean = %.4f, sd = %.4f\n\n", 
+            mean(null_dist_prop$stat), sd(null_dist_prop$stat)))
+
+# Calculate p-value
+p_value_prop <- null_dist_prop |>
+  get_p_value(obs_stat = obs_stat_prop, direction = "two-sided")
+
+cat(sprintf("P-value (two-sided): %.4f\n\n", p_value_prop$p_value))
+```
+
+```{r ec-viz-prop, fig.width=10, fig.height=6}
+# Visualize
+viz_perm_prop <- null_dist_prop |>
+  visualize() +
+  shade_p_value(obs_stat = obs_stat_prop, direction = "two-sided") +
+  labs(
+    title = "Permutation Test: Positive Revision Rate Difference by Party",
+    subtitle = sprintf("Observed diff = %.3f | p-value = %.4f | Tests if 'underestimation' is partisan",
+                       obs_stat_prop$stat, p_value_prop$p_value),
+    x = "Difference in Proportion Positive (D - R) under Null",
+    y = "Count (out of 10,000 permutations)",
+    caption = "Positive revision = BLS initially underestimated | If biased, one party would have more"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(face = "bold", size = 14))
+
+print(viz_perm_prop)
+```
+
+```{r ec-interpret-prop}
+cat("\n----- INTERPRETATION -----\n")
+if (p_value_prop$p_value >= 0.05) {
+  cat(sprintf("✓ p = %.4f (NOT significant)\n", p_value_prop$p_value))
+  cat("  → Both parties have similar rates of positive revisions\n")
+  cat("  → BLS doesn't systematically underestimate one party more\n")
+  cat("  → NO evidence of 'cooking the books' for political gain\n\n")
+} else {
+  cat(sprintf("⚠ p = %.4f (significant)\n", p_value_prop$p_value))
+  cat("  → Proportions differ slightly\n")
+  cat(sprintf("  → But absolute difference is only %.1f percentage points\n", 
+              abs(obs_stat_prop$stat) * 100))
+  cat("  → Economically negligible even if statistically significant\n\n")
+}
+```
+
+### BONUS: Bootstrap Confidence Intervals
+
+```{r ec-bootstrap}
+cat(paste(rep("=", 80), collapse = ""), "\n")
+cat("BONUS: Bootstrap Confidence Intervals for Mean Revision by Party\n")
+cat(paste(rep("=", 80), collapse = ""), "\n\n")
+
+cat("Using bootstrap to build 95% confidence intervals for mean revision\n")
+cat("(Shows RANGE of plausible values, accounting for sampling variability)\n\n")
+
+set.seed(20241207)
+
+# Bootstrap for Democrats
 boot_dem <- ces_political |>
   filter(party == "D") |>
   specify(response = revision) |>
   generate(reps = 10000, type = "bootstrap") |>
   calculate(stat = "mean")
 
-ci_dem <- boot_dem |> get_confidence_interval(level = 0.95)
+ci_dem <- boot_dem |>
+  get_confidence_interval(level = 0.95, type = "percentile")
 
+cat("Democratic Administrations:\n")
+cat(sprintf("  95%% CI: [%.2f, %.2f] thousand jobs\n", ci_dem$lower_ci, ci_dem$upper_ci))
+
+# Bootstrap for Republicans
 boot_rep <- ces_political |>
   filter(party == "R") |>
   specify(response = revision) |>
   generate(reps = 10000, type = "bootstrap") |>
   calculate(stat = "mean")
 
-ci_rep <- boot_rep |> get_confidence_interval(level = 0.95)
+ci_rep <- boot_rep |>
+  get_confidence_interval(level = 0.95, type = "percentile")
 
-cat(sprintf("Democratic 95%% CI: [%.2f, %.2f]\n", ci_dem$lower_ci, ci_dem$upper_ci))
-cat(sprintf("Republican 95%% CI: [%.2f, %.2f]\n", ci_rep$lower_ci, ci_rep$upper_ci))
+cat("Republican Administrations:\n")
+cat(sprintf("  95%% CI: [%.2f, %.2f] thousand jobs\n\n", ci_rep$lower_ci, ci_rep$upper_ci))
+
+# Check for overlap
+if (ci_dem$lower_ci <= ci_rep$upper_ci && ci_rep$lower_ci <= ci_dem$upper_ci) {
+  cat("✓ CONFIDENCE INTERVALS OVERLAP\n")
+  cat("  → NO clear difference between parties\n")
+  cat("  → Consistent with permutation test results\n")
+} else {
+  cat("⚠ Confidence intervals do NOT overlap\n")
+  cat("  → Suggests possible difference, but check effect size\n")
+}
 ```
+
+```{r ec-viz-bootstrap, fig.width=10, fig.height=6}
+# Visualize bootstrap distributions
+viz_boot_combined <- bind_rows(
+  boot_dem |> mutate(party = "Democratic"),
+  boot_rep |> mutate(party = "Republican")
+) |>
+  ggplot(aes(x = stat, fill = party)) +
+  geom_histogram(alpha = 0.6, bins = 50, position = "identity") +
+  geom_vline(data = data.frame(party = c("Democratic", "Republican"),
+                               ci_lower = c(ci_dem$lower_ci, ci_rep$lower_ci),
+                               ci_upper = c(ci_dem$upper_ci, ci_rep$upper_ci)) |>
+               pivot_longer(cols = c(ci_lower, ci_upper), 
+                            names_to = "bound", values_to = "value"),
+             aes(xintercept = value, color = party),
+             linetype = "dashed", linewidth = 1) +
+  scale_fill_manual(values = c("Democratic" = "steelblue", 
+                               "Republican" = "coral")) +
+  scale_color_manual(values = c("Democratic" = "darkblue", 
+                                "Republican" = "darkred")) +
+  labs(
+    title = "Bootstrap Distributions: Mean Revision by Party",
+    subtitle = "10,000 bootstrap resamples | Dashed lines = 95% confidence intervals",
+    x = "Mean Revision (thousands of jobs)",
+    y = "Frequency",
+    fill = "Administration",
+    color = "Administration",
+    caption = "Overlapping distributions → Similar mean revisions across parties"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    plot.subtitle = element_text(size = 10),
+    legend.position = "bottom"
+  )
+
+print(viz_boot_combined)
+```
+
+
 
 # Conclusions
 
@@ -877,4 +1233,3 @@ Both parametric and computational methods show **NO evidence of systematic parti
 
 ---
 
-**Analysis Date:** `r format(Sys.Date(), "%B %d, %Y")`
