@@ -62,7 +62,7 @@ Based on environmental justice literature, we hypothesize that:
 
 # Clear environment
 rm(list = ls())
-gc()
+invisible(gc())
 
 # Required packages
 required_packages <- c(
@@ -403,7 +403,7 @@ distances_mi <- as.numeric(distances) / 5280  # Convert feet to miles
 
 ### Methodological Limitation
 
-::: {.callout-warning}
+::: {.callout-note icon=false}
 ## Important Note
 
 Euclidean distance is a proxy for actual walking distance. True walking paths would need to account for street networks, pedestrian infrastructure, and barriers (highways, rivers). Research suggests straight-line distance underestimates actual walking distance by approximately 20-30%.
@@ -786,7 +786,7 @@ For every **$10,000 increase** in median income, walking distance changes by **`
 - Independence: ZIP codes are independent geographic units
 - Sample size: Adequate for reliable inference (n > 30)
 
-::: {.callout-note}
+::: {.callout-note icon=false}
 ## Conclusion
 
 `r if (cor_test$p.value < 0.05 && abs(cor_test$estimate) > 0.1) paste0("There is **statistically significant evidence** of a relationship between neighborhood income and park access. This finding supports the hypothesis that park accessibility is not equitably distributed across NYC neighborhoods.")`
@@ -1017,7 +1017,7 @@ total_pop <- sum(distance_results$total_pop)
 - **ZIP codes analyzed**: `r nrow(distance_results)`
 - **Total population represented**: `r format(total_pop, big.mark = ",")`
 
-::: {.callout-important}
+::: {.callout-note icon=false}
 ## Interpretation
 
 `r if (pct_accessible < 50) paste0("**Less than half** of NYC ZIP codes meet the 10-minute walk standard, indicating widespread accessibility challenges.")`
@@ -1045,7 +1045,7 @@ if (nrow(low_income) > 0 && nrow(high_income) > 0) {
 
 `r if (nrow(low_income) > 0 && nrow(high_income) > 0) sprintf("- **Low income areas**: %.3f miles average\n- **High income areas**: %.3f miles average\n- **Disparity ratio**: %.2fx\n- **Percent difference**: %.1f%%", low_income$avg_distance_mi, high_income$avg_distance_mi, disparity_ratio, abs(disparity_pct))`
 
-::: {.callout-warning}
+::: {.callout-note icon=false}
 ## Interpretation
 
 `r if (exists("disparity_ratio") && disparity_ratio > 1.2) paste0("**Low-income neighborhoods face significantly worse park access** than high-income areas, demonstrating clear environmental inequity.")`
@@ -1107,7 +1107,11 @@ When combined with **quantity** (acreage per capita) and **quality** (amenity as
 
 # Conclusions {#sec-conclusions}
 
-This spatial analysis provides quantitative evidence that park access in New York City exhibits significant spatial and demographic disparities. Our investigation reveals that only `r sprintf("%.1f%%", pct_accessible)` of NYC ZIP codes meet the 10-minute walk standard for park accessibility, with clear patterns emerging across income and racial/ethnic lines. `r if (cor_test$estimate < 0 && cor_test$p.value < 0.05) paste0("The statistically significant negative correlation between neighborhood income and park distance (r = ", sprintf("%.3f", cor_test$estimate), ", p < 0.05) demonstrates that higher-income neighborhoods systematically enjoy closer proximity to parks, while lower-income communities face longer walking distances - a clear manifestation of environmental inequity. Similarly, racial and ethnic composition correlates with access disparities, with ", if(nrow(race_analysis) > 0) sprintf("%s neighborhoods experiencing the poorest access at %.3f miles average distance", race_analysis %>% slice_max(avg_distance_mi, n=1) %>% pull(majority_group), race_analysis %>% slice_max(avg_distance_mi, n=1) %>% pull(avg_distance_mi)), " compared to better-served areas.")` Combined with team members' research on park quantity and quality, our proximity analysis completes a comprehensive view of environmental justice issues in urban green space, revealing that some neighborhoods face compounding disadvantages - greater distances to parks, less total park space per capita, and lower-quality amenities. The path toward equity requires multi-dimensional interventions: building new parks in underserved areas identified through our spatial analysis, improving pedestrian infrastructure to reduce effective walking distances, ensuring park quality meets community needs, and maintaining accountability through ongoing measurement and reporting. By addressing these spatial, quantitative, and qualitative dimensions together, New York City can move toward ensuring all residents - regardless of income, race, or neighborhood - enjoy equitable access to high-quality public park space, recognizing that true environmental justice demands both proximity and quality in park provision.
+This spatial analysis provides quantitative evidence that park access in New York City exhibits significant spatial and demographic disparities. Our investigation reveals that only `r sprintf("%.1f%%", pct_accessible)` of NYC ZIP codes meet the 10-minute walk standard for park accessibility, with clear patterns emerging across income and racial/ethnic lines. `r if (cor_test$estimate < 0 && cor_test$p.value < 0.05) paste0("The statistically significant negative correlation between neighborhood income and park distance (r = ", sprintf("%.3f", cor_test$estimate), ", p < 0.05) demonstrates that higher-income neighborhoods systematically enjoy closer proximity to parks, while lower-income communities face longer walking distances - a clear manifestation of environmental inequity. Similarly, racial and ethnic composition correlates with access disparities, with ", if(nrow(race_analysis) > 0) sprintf("%s neighborhoods experiencing the poorest access at %.3f miles average distance", race_analysis %>% slice_max(avg_distance_mi, n=1) %>% pull(majority_group), race_analysis %>% slice_max(avg_distance_mi, n=1) %>% pull(avg_distance_mi)), " compared to better-served areas.")` 
+
+Combined with team members' research on park quantity and quality, our proximity analysis completes a comprehensive view of environmental justice issues in urban green space, revealing that some neighborhoods face compounding disadvantages - greater distances to parks, less total park space per capita, and lower-quality amenities. 
+
+The path toward equity requires multi-dimensional interventions: building new parks in underserved areas identified through our spatial analysis, improving pedestrian infrastructure to reduce effective walking distances, ensuring park quality meets community needs, and maintaining accountability through ongoing measurement and reporting. By addressing these spatial, quantitative, and qualitative dimensions together, New York City can move toward ensuring all residents - regardless of income, race, or neighborhood - enjoy equitable access to high-quality public park space, recognizing that true environmental justice demands both proximity and quality in park provision.
 
 ---
 
