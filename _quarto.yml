@@ -24,11 +24,9 @@ website:
           - text: "Mini Project 04"
             href: "./mp04.html"
           - text: "Summary Report"
-            href: "./summary_report.html"            
+            href: "./summary_report.html"         
           - text: "Indivisual Report"
-            href: "./individual_report.html"         
-          - text: "Final Project!"
-            href: "./finalproject.html"
+            href: "./individual_report.html"
       - text: "About Me!"
         href: "./aboutme.html"
     
